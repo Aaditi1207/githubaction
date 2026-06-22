@@ -9,6 +9,7 @@ jobs:
 build:
 runs-on: self-hosted
 
+```
 steps:
   - name: Checkout Code
     uses: actions/checkout@v4
@@ -16,7 +17,7 @@ steps:
   - name: Set up JDK 17
     uses: actions/setup-java@v4
     with:
-      distribution: 'temurin'
+      distribution: temurin
       java-version: '17'
 
   - name: Ensure Maven is Installed
@@ -43,7 +44,7 @@ steps:
       SONAR_HOST_URL: ${{ secrets.SONAR_HOST }}
     run: |
       echo "Checking SonarQube availability..."
-      curl -v $SONAR_HOST_URL/api/system/status
+      curl -v "$SONAR_HOST_URL/api/system/status"
 
   - name: SonarQube Analysis
     env:
@@ -52,20 +53,22 @@ steps:
     run: |
       mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
         -Dsonar.projectKey=hotstar \
-        -Dsonar.host.url=$SONAR_HOST_URL \
-        -Dsonar.token=$SONAR_TOKEN
+        -Dsonar.host.url="$SONAR_HOST_URL" \
+        -Dsonar.token="$SONAR_TOKEN"
 
   - name: Upload WAR Artifact
     uses: actions/upload-artifact@v4
     with:
       name: myapp
       path: target/*.war
+```
 
 deploy:
 needs: build
 runs-on: self-hosted
 environment: production
 
+```
 steps:
   - name: Download WAR Artifact
     uses: actions/download-artifact@v4
@@ -79,8 +82,9 @@ steps:
       echo "Deploying $WAR_FILE"
 
       curl --upload-file "$WAR_FILE" \
-      "http://${{ secrets.TOMCAT_USER }}:${{ secrets.TOMCAT_PASSWORD }}@${{ secrets.TOMCAT_HOST }}/manager/text/deploy?path=/myapp&update=true"
+        "http://${{ secrets.TOMCAT_USER }}:${{ secrets.TOMCAT_PASSWORD }}@${{ secrets.TOMCAT_HOST }}/manager/text/deploy?path=/myapp&update=true"
 
   - name: Verify Deployment
     run: |
       curl -I "http://${{ secrets.TOMCAT_HOST }}/myapp"
+```
