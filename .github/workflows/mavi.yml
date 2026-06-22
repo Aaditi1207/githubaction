@@ -1,76 +1,90 @@
 name: Java CI/CD Pipeline to Tomcat
 
 on:
-  push:
-    branches:
-      - main
+push:
+branches:
+- main
 
 jobs:
-  build:
-    runs-on: self-hosted
+build:
+runs-on: self-hosted
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+```
+steps:
+  - name: Checkout Code
+    uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+  - name: Set up JDK 17
+    uses: actions/setup-java@v4
+    with:
+      distribution: 'temurin'
+      java-version: '17'
 
-      - name: Ensure Maven is installed
-        run: |
-          if ! command -v mvn >/dev/null 2>&1; then
-            sudo dnf install -y maven
-          fi
-          mvn -version
+  - name: Ensure Maven is Installed
+    run: |
+      if ! command -v mvn >/dev/null 2>&1; then
+        echo "Installing Maven..."
+        sudo dnf install -y maven
+      fi
+      mvn -version
 
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+  - name: Cache Maven Dependencies
+    uses: actions/cache@v4
+    with:
+      path: ~/.m2/repository
+      key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+      restore-keys: |
+        ${{ runner.os }}-maven-
 
-      - name: Build with Maven
-        run: mvn clean package -DskipTests
+  - name: Build Application
+    run: mvn clean package -DskipTests
 
-      - name: Upload WAR Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: myapp
-          path: target/*.war
+  - name: Verify SonarQube Connectivity
+    env:
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST }}
+    run: |
+      echo "Checking SonarQube availability..."
+      curl -v $SONAR_HOST_URL/api/system/status
 
-      - name: SonarQube Analysis
-        env:
-          SONAR_HOST: ${{ secrets.SONAR_HOST }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          mvn sonar:sonar \
-            -Dsonar.projectKey=hotstar \
-            -Dsonar.host.url=${SONAR_HOST} \
-            -Dsonar.login=${SONAR_TOKEN}
+  - name: SonarQube Analysis
+    env:
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    run: |
+      mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+        -Dsonar.projectKey=hotstar \
+        -Dsonar.host.url=$SONAR_HOST_URL \
+        -Dsonar.token=$SONAR_TOKEN
 
-  deploy:
-    needs: build
-    runs-on: self-hosted
-    environment: production
+  - name: Upload WAR Artifact
+    uses: actions/upload-artifact@v4
+    with:
+      name: myapp
+      path: target/*.war
+```
 
-    steps:
-      - name: Download WAR Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: myapp
+deploy:
+needs: build
+runs-on: self-hosted
+environment: production
 
-      - name: Deploy to Tomcat
-        run: |
-          WAR_FILE=$(ls *.war | head -1)
+```
+steps:
+  - name: Download WAR Artifact
+    uses: actions/download-artifact@v4
+    with:
+      name: myapp
 
-          curl --upload-file "$WAR_FILE" \
-          "http://${{ secrets.TOMCAT_USER }}:${{ secrets.TOMCAT_PASSWORD }}@${{ secrets.TOMCAT_HOST }}/manager/text/deploy?path=/myapp&update=true"
+  - name: Deploy to Tomcat
+    run: |
+      WAR_FILE=$(ls *.war | head -1)
 
-      - name: Verify Deployment
-        run: |
-          curl -I "http://${{ secrets.TOMCAT_HOST }}/myapp"
+      echo "Deploying $WAR_FILE"
+
+      curl --upload-file "$WAR_FILE" \
+      "http://${{ secrets.TOMCAT_USER }}:${{ secrets.TOMCAT_PASSWORD }}@${{ secrets.TOMCAT_HOST }}/manager/text/deploy?path=/myapp&update=true"
+
+  - name: Verify Deployment
+    run: |
+      curl -I "http://${{ secrets.TOMCAT_HOST }}/myapp"
+```
