@@ -9,7 +9,6 @@ jobs:
 build:
 runs-on: self-hosted
 
-```
 steps:
   - name: Checkout Code
     uses: actions/checkout@v4
@@ -61,14 +60,12 @@ steps:
     with:
       name: myapp
       path: target/*.war
-```
 
 deploy:
 needs: build
 runs-on: self-hosted
 environment: production
 
-```
 steps:
   - name: Download WAR Artifact
     uses: actions/download-artifact@v4
@@ -87,4 +84,3 @@ steps:
   - name: Verify Deployment
     run: |
       curl -I "http://${{ secrets.TOMCAT_HOST }}/myapp"
-```
