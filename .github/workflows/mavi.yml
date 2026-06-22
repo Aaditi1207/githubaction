@@ -2,11 +2,142 @@ name: Java CI/CD Pipeline to Tomcat
 
 on:
   push:
-    branches: [ main }   # Trigger on push to main branch
+    branches: [ main ]   # Trigger on push to main branch
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
+
+    steps:
+      # 1. Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Set up JDK
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 3. Install Maven if missing
+      - name: Ensure Maven is installed
+        run: |
+          if ! command -v mvn &> /dev/null; then
+            echo "Maven not found. Installing..."
+            sudo dnf install -y maven
+          else
+            echo "Maven is already installed"
+          fi
+          mvn -version
+      # 4. Cache Maven dependencies
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # 5. Build with Maven
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      # 6. Upload WAR as artifact (optional, for later jobs)
+      - name: Upload WAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: myapp
+          path: target/*.war
+
+  deploy:
+    runs-on: [self-hosted, linux]
+    needs: build
+    environment: production
+
+    steps:
+      # 7. Download WAR artifact
+      - name: Download WAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: myapp
+
+      # 8. Deploy WAR via Tomcat Manager
+      - name: Deploy to Tomcat
+        run: |
+          WAR_FILE=$(ls *.war)
+          echo "Deploying $WAR_FILE to Tomcat..."
+          curl -v --upload-file "$WAR_FILE" \
+            "http://${{ secrets.TOMCAT_USER }}:${{ secrets.TOMCAT_PASSWORD }}@${{ secrets.TOMCAT_HOST }}/manager/text/deploy?path=/myapp&update=true"
+      # 9. Optional: verify deployment
+      - name: Verify deployment
+        run: |
+          curl -I http://${{ secrets.TOMCAT_HOST }}/myapp
+	
+
+Integrate SonarQube
+==================
+
+Launch Amazon Linux 2023 t2.medium for SonarQube
+
+vi sonar.sh
+
+#! /bin/bash
+cd /opt/
+wget https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-8.9.6.50800.zip
+unzip sonarqube-8.9.6.50800.zip
+sudo dnf install java-17-amazon-corretto -y
+useradd sonar
+chown sonar:sonar sonarqube-8.9.6.50800 -R
+chmod 777 sonarqube-8.9.6.50800 -R
+su - sonar
+# use the below command manually after installation
+#sh /opt/sonarqube-8.9.6.50800/bin/linux-x86-64/sonar.sh start
+#echo "user=admin & password=admin"
+
+
+======================================
+
+Start the SOnar
+----------------
+
+sh /opt/sonarqube-8.9.6.50800/bin/linux-x86-64/sonar.sh start
+
+
+http://ip:9000 username: admin, password: admin
+
+
+Add Project --> Manuallly --> projectname: hotstar
+
+e52e9d827cf0f5ff8ad765c5dfa229dc8a391d80
+
+
+Secrets in GitHub:
+-----------------
+
+Go to GitHub repo ---> settings --> secrets and variables --> actions --> Repository secrets --> New Repository secrets
+we can use env secrets or repo secrets also
+
+Note:     Repository secrets → available to one repo
+          Environment secrets → scoped to specific environments (dev, prod)
+
+
+SONAR_HOST → e.g., http://your-sonarqube-server:9000
+
+SONAR_TOKEN → a token generated in SonarQube with Execute Analysis permission
+
+
+
+name: Java CI/CD Pipeline to Tomcat
+
+on:
+  push:
+    branches: [ main ]   # Trigger on push to main branch
+
+jobs:
+  build:
+    runs-on: [self-hosted, linux]
 
     steps:
       # 1. Checkout code
